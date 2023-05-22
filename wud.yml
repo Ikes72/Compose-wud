@@ -1,0 +1,86 @@
+---
+version: "3"
+
+#####################################
+#
+# service configuration
+#
+#####################################
+services:
+    service:
+        image: fmartinou/whats-up-docker:6.2.0
+        container_name: ${SERVICE}
+        restart: unless-stopped
+        user: ${UID}:${GID}
+        security_opt:
+            - no-new-privileges:true
+        networks:
+            - service_network_1
+            - service_network_2
+            - service_network_3
+            - web_proxy_network
+        expose:
+            - ${WEB_PORT}
+        volumes:
+            - /apps_data/${SERVICE}/data:/store
+            #- /apps_compose:/wud/compose
+        environment:
+            # Logs
+            - WUD_LOG_LEVEL=debug
+            - WUD_LOG_FORMAT=json
+            # Watcher 'local'
+            - WUD_WATCHER_LOCAL_HOST=docker-socket-proxy
+            - WUD_WATCHER_LOCAL_PORT=2375
+            - WUD_WATCHER_LOCAL_CRON=0 18 * * 6
+            - WUD_WATCHER_LOCAL_WATCHBYDEFAULT=false
+            - WUD_WATCHER_LOCAL_WATCHALL=false
+            - WUD_WATCHER_LOCAL_WATCHEVENTS=true
+            # Trigger 'docker'
+            - WUD_TRIGGER_DOCKER_LOCAL_ONCE=true
+            - WUD_TRIGGER_DOCKER_LOCAL_THRESHOLD=major
+            - WUD_TRIGGER_DOCKER_LOCAL_DRYRUN=true
+            - WUD_TRIGGER_DOCKER_LOCAL_PRUNE=true
+            # Trigger 'mqtt'
+            - WUD_TRIGGER_MQTT_EMQX_URL=mqtt://emqx:1883
+            - WUD_TRIGGER_MQTT_EMQX_HASS_ENABLED=true
+            # Trigger 'apprise'
+            - WUD_TRIGGER_APPRISE_LOCAL_URL=http://apprise:8000
+            - WUD_TRIGGER_APPRISE_LOCAL_URLS=apprise://apprise:8000/apprise?tags=ntfy-wud
+        labels:
+            # traefik
+            - traefik.enable=true
+            - traefik.docker.network=${WEB_PROXY_NETWORK}
+            - traefik.http.routers.${SERVICE}.rule=Host(`${SERVICE}.${DOMAIN}`)
+            - traefik.http.routers.${SERVICE}.service=${SERVICE}
+            - traefik.http.services.${SERVICE}.loadbalancer.server.port=${WEB_PORT}
+            # wud
+            - wud.watch=true
+            - wud.display.name=${SERVICE}
+            - wud.tag.include=^\d+\.\d+\.\d+$$
+            - wud.link.template=https://github.com/fmartinou/whats-up-docker/releases/tag/$${major}.$${minor}.$${patch}
+            # homepage
+            - homepage.group=${GROUP}
+            - homepage.name=${SERVICE}
+            - homepage.icon=${ICON}
+            - homepage.href=https://${SERVICE}.${DOMAIN}
+            - homepage.description=${DESCRIPTION}
+  
+#####################################
+#
+# network configuration
+#
+#####################################
+networks:
+    service_network_1:
+        external: true
+        name: ${SERVICE_NETWORK_1}
+    service_network_2:
+        external: true
+        name: ${SERVICE_NETWORK_2}
+    service_network_3:
+        external: true
+        name: ${SERVICE_NETWORK_3}
+    web_proxy_network:
+        external: true
+        name: ${WEB_PROXY_NETWORK}
+    
